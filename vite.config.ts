@@ -3,8 +3,8 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: './',
   optimizeDeps: {
-    include: ['long'],
-    exclude: ['onnxruntime-web', '@tensorflow/tfjs'],
+    include: ['long', 'seedrandom'],
+    exclude: ['onnxruntime-web'],
   },
   build: {
     target: 'esnext',
