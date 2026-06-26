@@ -172,7 +172,10 @@ separateBtn.addEventListener('click', async () => {
   } catch (e: any) {
     log('分离失败: ' + e.message);
     console.error(e);
-    separateBtn.disabled = false;
+    // Fallback: directly transcribe original audio
+    log('模型不可用，尝试直接转录原始音频...');
+    await runDirectTranscription();
+    separateBtn.disabled = true;
   }
 });
 
@@ -238,6 +241,19 @@ exportBtn.addEventListener('click', () => {
   if (!state.transcribedNotes) return;
   setStep(4);
 
+  // Fallback mode: single track from original audio
+  if (state.transcribedNotes['original']) {
+    const midiData = buildMultiTrackMidi([
+      { name: '原始音频', notes: state.transcribedNotes['original'], instrument: 1, channel: 0 }
+    ]);
+    const filename = (state.file?.name.replace(/\.[^/.]+$/, '') || 'output') + '.mid';
+    downloadMidi(midiData, filename);
+    log(`MIDI 导出成功: ${filename}`);
+    setStep(4);
+    return;
+  }
+
+  // Normal mode: multi-track
   const tracks = EXPORT_STEMS.map((name) => ({
     name: translateStemName(name),
     notes: state.transcribedNotes![name] || [],
@@ -263,6 +279,37 @@ function translateStemName(name: string): string {
   return map[name] || name;
 }
 
+// Fallback: directly transcribe original audio when separation model is unavailable
+async function runDirectTranscription() {
+  if (!state.audioBuffer) return;
+  setStep(3);
+  log('正在直接转录原始音频（无需分离模型）...');
+
+  try {
+    const mono22050 = await audioBufferToMono22050(state.audioBuffer);
+    const notes = await transcribeToNotes(mono22050, (pct) => {
+      setProgress('转录音频', Math.round(pct * 100), 100);
+    });
+
+    state.transcribedNotes = { original: notes };
+    log(`转录完成! 检测到 ${notes.length} 个音符`);
+    progressEl.textContent = '';
+
+    stemListEl.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'stem-item';
+    div.innerHTML = `<span>原始音频 <span class="note-count">${notes.length} 音符</span></span><span>${state.audioBuffer.duration.toFixed(1)}s</span>`;
+    stemListEl.appendChild(div);
+
+    exportBtn.disabled = false;
+    setStep(3);
+  } catch (e: any) {
+    log('直接转录失败: ' + e.message);
+    console.error(e);
+    transcribeBtn.disabled = false;
+  }
+}
+
 // One-click handler
 oneClickBtn.addEventListener('click', async () => {
   if (!state.audioBuffer) {
@@ -284,31 +331,48 @@ async function runOneClick() {
     // Step 1 already done (file loaded)
     setStep(1);
 
-    // Step 2: Separate
-    if (!state.separatedStems) {
+    // Step 2: Separate (with fallback)
+    if (!state.separatedStems && !state.transcribedNotes) {
       setStep(2);
-      log('正在加载 Demucs 6s 模型 (~136MB)...');
-      const session = await loadDemucsModel((loaded, total) => {
-        const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
-        progressEl.textContent = `加载模型: ${pct}%`;
-      });
+      try {
+        log('正在加载 Demucs 6s 模型 (~136MB)...');
+        const session = await loadDemucsModel((loaded, total) => {
+          const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+          progressEl.textContent = `加载模型: ${pct}%`;
+        });
 
-      log('正在分离音轨（人声/鼓/贝斯/钢琴/其他）...');
-      const stems = await separateTracks(session, state.audioBuffer!, (_stem, step, total) => {
-        setProgress('分离音轨', step, total);
-      });
+        log('正在分离音轨（人声/鼓/贝斯/钢琴/其他）...');
+        const stems = await separateTracks(session, state.audioBuffer!, (_stem, step, total) => {
+          setProgress('分离音轨', step, total);
+        });
 
-      state.separatedStems = stems;
-      log('音轨分离完成!');
-      progressEl.textContent = '';
+        state.separatedStems = stems;
+        log('音轨分离完成!');
+        progressEl.textContent = '';
 
-      stemListEl.innerHTML = '';
-      for (const name of EXPORT_STEMS) {
-        const data = stems[name];
-        const div = document.createElement('div');
-        div.className = 'stem-item';
-        div.innerHTML = `<span>${translateStemName(name)}</span><span>${(data[0].length / 44100).toFixed(1)}s</span>`;
-        stemListEl.appendChild(div);
+        stemListEl.innerHTML = '';
+        for (const name of EXPORT_STEMS) {
+          const data = stems[name];
+          const div = document.createElement('div');
+          div.className = 'stem-item';
+          div.innerHTML = `<span>${translateStemName(name)}</span><span>${(data[0].length / 44100).toFixed(1)}s</span>`;
+          stemListEl.appendChild(div);
+        }
+      } catch (sepErr: any) {
+        log('分离失败: ' + sepErr.message);
+        console.error(sepErr);
+        log('模型不可用，将直接转录原始音频...');
+        await runDirectTranscription();
+        // Skip to export after fallback transcription
+        setStep(4);
+        const midiData = buildMultiTrackMidi([
+          { name: '原始音频', notes: state.transcribedNotes!['original'], instrument: 1, channel: 0 }
+        ]);
+        const filename = (state.file?.name.replace(/\.[^/.]+$/, '') || 'output') + '.mid';
+        downloadMidi(midiData, filename);
+        log(`一键导出成功: ${filename}`);
+        setStep(4);
+        return;
       }
     }
 
@@ -321,7 +385,7 @@ async function runOneClick() {
         const name = EXPORT_STEMS[i];
         log(`正在转录 ${translateStemName(name)}...`);
 
-        const [left, right] = state.separatedStems[name];
+        const [left, right] = state.separatedStems![name];
         const tempBuffer = new AudioBuffer({
           length: left.length,
           numberOfChannels: 2,
@@ -345,7 +409,7 @@ async function runOneClick() {
 
       stemListEl.innerHTML = '';
       for (const name of EXPORT_STEMS) {
-        const data = state.separatedStems[name];
+        const data = state.separatedStems![name];
         const count = notes[name]?.length || 0;
         const div = document.createElement('div');
         div.className = 'stem-item';
