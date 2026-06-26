@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@spotify/basic-pitch": "^1.0.1",
-    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs": "^3.21.0",
     "midi-writer-js": "^3.2.1",
     "onnxruntime-web": "^1.20.1"
   },
