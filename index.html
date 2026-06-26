@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>音频转 MIDI 工具</title>
+</head>
+<body>
+  <div class="container">
+    <h1>音频转 MIDI</h1>
+    <p class="subtitle">在浏览器中完成音频分离与 MIDI 转换，文件不会上传服务器</p>
+    
+    <div id="steps" class="steps">
+      <div class="step active">1. 上传</div>
+      <div class="step">2. 分离</div>
+      <div class="step">3. 转录</div>
+      <div class="step">4. 导出</div>
+    </div>
+    
+    <div id="drop-zone" class="drop-zone">
+      <div class="drop-icon">🎵</div>
+      <p>点击、拖拽或粘贴音频文件</p>
+      <p class="hint">支持 MP3, WAV, FLAC, OGG, M4A</p>
+      <input type="file" id="file-input" accept="audio/*" hidden />
+    </div>
+
+    <div class="upload-actions">
+      <button id="btn-upload" class="btn upload">📁 上传音频</button>
+      <span class="upload-hint">或按 Ctrl+V 粘贴</span>
+    </div>
+    
+    <div id="status" class="status">等待上传...</div>
+    <div id="progress" class="progress"></div>
+    
+    <div class="actions">
+      <button id="btn-one-click" class="btn accent">一键导出 MIDI</button>
+    </div>
+    <div class="divider">或分步操作</div>
+    <div class="actions">
+      <button id="btn-separate" class="btn primary">分离音轨</button>
+      <button id="btn-transcribe" class="btn primary">转录 MIDI</button>
+      <button id="btn-export" class="btn primary">导出 MIDI</button>
+    </div>
+    
+    <div id="stem-list" class="stem-list"></div>
+  </div>
+  
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
