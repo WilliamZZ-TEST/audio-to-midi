@@ -1,3 +1,4 @@
+import * as tf from '@tensorflow/tfjs';
 import {
   BasicPitch,
   outputToNotesPoly,
@@ -11,6 +12,13 @@ let basicPitchInstance: BasicPitch | null = null;
 
 export async function getBasicPitch(): Promise<BasicPitch> {
   if (!basicPitchInstance) {
+    // Force CPU backend to avoid WebGL unavailability issues
+    await tf.ready();
+    try {
+      tf.setBackend('cpu');
+    } catch (_) {
+      // ignore if backend switch fails
+    }
     basicPitchInstance = new BasicPitch(MODEL_URL);
   }
   return basicPitchInstance;

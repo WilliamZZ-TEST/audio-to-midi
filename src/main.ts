@@ -363,6 +363,10 @@ async function runOneClick() {
         console.error(sepErr);
         log('模型不可用，将直接转录原始音频...');
         await runDirectTranscription();
+        if (!state.transcribedNotes?.['original']) {
+          log('直接转录也失败了，请检查浏览器是否支持 WebGL');
+          return;
+        }
         // Skip to export after fallback transcription
         setStep(4);
         const midiData = buildMultiTrackMidi([
